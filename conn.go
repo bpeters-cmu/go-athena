@@ -36,7 +36,7 @@ func (c *conn) QueryContext(ctx context.Context, query string, args []driver.Nam
 		panic("Athena doesn't support prepared statements. Format your own arguments.")
 	}
 
-	rows, err := c.runQuery(ctx, query)
+	rows, err := c.runQuery(ctx, query, args)
 	return rows, err
 }
 
@@ -45,11 +45,11 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 		panic("Athena doesn't support prepared statements. Format your own arguments.")
 	}
 
-	_, err := c.runQuery(ctx, query)
+	_, err := c.runQuery(ctx, query, args)
 	return nil, err
 }
 
-func (c *conn) runQuery(ctx context.Context, query string) (driver.Rows, error) {
+func (c *conn) runQuery(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	// result mode
 	isSelect := isSelectQuery(query)
 	resultMode := c.resultMode
@@ -91,7 +91,15 @@ func (c *conn) runQuery(ctx context.Context, query string) (driver.Rows, error) 
 		afterDownload = c.dropCTASTable(ctx, ctasTable)
 	}
 
-	queryID, err := c.startQuery(query)
+	var params []*string
+	if len(args) > 0 {
+		params = make([]*string, len(args))
+		for i, arg := range args {
+			params[i] = aws.String(arg.Value.(string))
+		}
+	}
+
+	queryID, err := c.startQueryWithParams(query, params)
 	if err != nil {
 		return nil, err
 	}
@@ -132,6 +140,26 @@ func (c *conn) dropCTASTable(ctx context.Context, table string) func() error {
 func (c *conn) startQuery(query string) (string, error) {
 	resp, err := c.athena.StartQueryExecution(&athena.StartQueryExecutionInput{
 		QueryString: aws.String(query),
+		QueryExecutionContext: &athena.QueryExecutionContext{
+			Database: aws.String(c.db),
+		},
+		ResultConfiguration: &athena.ResultConfiguration{
+			OutputLocation: aws.String(c.OutputLocation),
+		},
+		WorkGroup: aws.String(c.workgroup),
+	})
+	if err != nil {
+		return "", err
+	}
+
+	return *resp.QueryExecutionId, nil
+}
+
+// startQuery starts an Athena query and returns its ID.
+func (c *conn) startQueryWithParams(query string, params []*string) (string, error) {
+	resp, err := c.athena.StartQueryExecution(&athena.StartQueryExecutionInput{
+		QueryString:         aws.String(query),
+		ExecutionParameters: params,
 		QueryExecutionContext: &athena.QueryExecutionContext{
 			Database: aws.String(c.db),
 		},
