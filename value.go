@@ -108,6 +108,12 @@ func convertValue(athenaType string, rawValue *string) (interface{}, error) {
 		return time.Parse(TimestampWithTimeZoneLayout, val)
 	case "date":
 		return time.Parse(DateLayout, val)
+	// for binary, we assume all chars are 0 or 1; for json,
+	// we assume the json syntax is correct. Leave to caller to verify it.
+	case "json", "char", "varbinary", "row", "binary",
+		"struct", "interval year to month", "interval day to second",
+		"ipaddress", "array", "map", "unknown":
+		return val, nil
 	default:
 		panic(fmt.Errorf("unknown type `%s` with value %s", athenaType, val))
 	}
