@@ -32,19 +32,11 @@ type conn struct {
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
-	if len(args) > 0 {
-		panic("Athena doesn't support prepared statements. Format your own arguments.")
-	}
-
 	rows, err := c.runQuery(ctx, query, args)
 	return rows, err
 }
 
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
-	if len(args) > 0 {
-		panic("Athena doesn't support prepared statements. Format your own arguments.")
-	}
-
 	_, err := c.runQuery(ctx, query, args)
 	return nil, err
 }
